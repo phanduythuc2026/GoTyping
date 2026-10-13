@@ -84,9 +84,9 @@ export async function POST(req: NextRequest) {
     const words = cleanText.split(/\s+/).filter(Boolean);
     const wordCount = words.length;
 
-    if (wordCount < 50) {
+    if (wordCount < 20 && cleanText.length < 100) {
       return NextResponse.json(
-        { success: false, error: "Bài viết quá ngắn hoặc nội dung bị chặn." },
+        { success: false, error: "Bài viết quá ngắn để tạo bài tập gõ (dưới 20 từ)." },
         { status: 422 }
       );
     }
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     const chunks = chunkTextIntoSessions(cleanText, 150, 220);
 
     const articleData: ExtractedArticle = {
-      title: readabilityOutput.title,
+      title: readabilityOutput.title || "Bài Viết Bóc Tách",
       byline: readabilityOutput.byline,
       sourceUrl: url,
       sourceDomain: domain,
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       cleanText,
       wordCount,
       lexicalLevel: wordCount > 300 ? "Academic" : "C1",
-      chunks,
+      chunks: chunks.length > 0 ? chunks : [cleanText],
       awlWords: [],
       collocations: [],
     };
@@ -119,10 +119,23 @@ export async function POST(req: NextRequest) {
       error: error instanceof Error ? error.message : "Unknown error",
     });
 
+    const errMessage = error instanceof Error ? error.message : "";
+    let clientMessage = "Không thể tải bài báo từ địa chỉ này. Vui lòng kiểm tra lại đường dẫn hoặc thử bài viết khác.";
+
+    if (errMessage.includes("HTTP: 404")) {
+      clientMessage = "Trang báo này không tồn tại (Lỗi 404 Not Found trên máy chủ nguồn).";
+    } else if (errMessage.includes("HTTP: 403") || errMessage.includes("HTTP: 401")) {
+      clientMessage = "Trang báo này yêu cầu đăng nhập trả phí (Paywall) hoặc chặn đọc tự động.";
+    } else if (errMessage.includes("DNS")) {
+      clientMessage = "Không thể phân giải tên miền của trang báo này. Vui lòng kiểm tra lại URL.";
+    } else if (errMessage.includes("SSRF")) {
+      clientMessage = "Liên kết bị từ chối do vi phạm quy tắc bảo mật máy chủ.";
+    }
+
     return NextResponse.json(
       {
         success: false,
-        error: "Yêu cầu không thể xử lý. Vui lòng kiểm tra lại đường dẫn và thử lại sau.",
+        error: clientMessage,
       },
       { status: 500 }
     );

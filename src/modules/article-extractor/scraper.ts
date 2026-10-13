@@ -6,11 +6,11 @@ import { safeFetchArticleHtml } from "./ssrf-guard";
  */
 export async function fetchArticleHtml(
   url: string,
-  timeoutMs: number = 10000
+  timeoutMs: number = 15000
 ): Promise<string> {
   return safeFetchArticleHtml(url, {
-    maxRedirects: 2,
-    maxBytes: 3 * 1024 * 1024,
+    maxRedirects: 5,
+    maxBytes: 10 * 1024 * 1024,
     timeoutMs,
   });
 }

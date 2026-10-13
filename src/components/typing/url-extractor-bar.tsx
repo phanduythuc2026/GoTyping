@@ -50,10 +50,20 @@ export const UrlExtractorBar: React.FC<UrlExtractorBarProps> = ({
         body: JSON.stringify({ url: url.trim() }),
       });
 
-      const data = await res.json();
+      let data: { success?: boolean; error?: string; data?: ExtractedArticle } | null = null;
+      try {
+        const text = await res.text();
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Định dạng phản hồi không hợp lệ."
+            : `Máy chủ phản hồi mã lỗi ${res.status}. Vui lòng thử lại sau.`
+        );
+      }
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Không thể bóc tách nội dung từ link này.");
+      if (!res.ok || !data?.success || !data?.data) {
+        throw new Error(data?.error || "Không thể bóc tách nội dung từ link này.");
       }
 
       onArticleLoaded(data.data);

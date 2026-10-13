@@ -205,12 +205,30 @@ export async function validateUrlAgainstSsrf(rawUrl: string): Promise<{
 
   // Deep DNS Lookup: inspect all A and AAAA records returned
   try {
-    const lookupResults = await dns.promises.lookup(hostname, { all: true });
-    if (!lookupResults || lookupResults.length === 0) {
+    let resolvedIps: string[] = [];
+    try {
+      const lookupResults = await dns.promises.lookup(hostname, { all: true });
+      if (lookupResults && lookupResults.length > 0) {
+        resolvedIps = lookupResults.map((r) => r.address);
+      }
+    } catch {
+      // Fallback to trusted public DNS resolver if OS DNS encounters local ISP block
+      try {
+        const resolver = new dns.promises.Resolver();
+        resolver.setServers(["8.8.8.8", "1.1.1.1", "8.8.4.4"]);
+        const [ipv4s, ipv6s] = await Promise.allSettled([
+          resolver.resolve4(hostname),
+          resolver.resolve6(hostname),
+        ]);
+        if (ipv4s.status === "fulfilled") resolvedIps.push(...ipv4s.value);
+        if (ipv6s.status === "fulfilled") resolvedIps.push(...ipv6s.value);
+      } catch {}
+    }
+
+    if (resolvedIps.length === 0) {
       return { valid: false, error: "Không thể phân giải tên miền (DNS lookup failed)." };
     }
 
-    const resolvedIps = lookupResults.map((r) => r.address);
     for (const ip of resolvedIps) {
       if (isPrivateOrBlockedIp(ip)) {
         return {
@@ -233,8 +251,8 @@ export async function validateUrlAgainstSsrf(rawUrl: string): Promise<{
 /**
  * Fetches HTML from a remote article with multi-tier SSRF defense:
  * - Pre-fetch DNS IP pinning & validation
- * - Manual redirect locking (max 2 redirects, re-validating SSRF on each hop)
- * - 3MB streaming payload cap via AbortController
+ * - Manual redirect locking (max 5 redirects, re-validating SSRF on each hop)
+ * - 10MB streaming payload cap with graceful termination
  */
 export async function safeFetchArticleHtml(
   initialUrl: string,
@@ -244,9 +262,9 @@ export async function safeFetchArticleHtml(
     timeoutMs?: number;
   } = {}
 ): Promise<string> {
-  const maxRedirects = options.maxRedirects ?? 2;
-  const maxBytes = options.maxBytes ?? 3 * 1024 * 1024; // 3MB cap
-  const timeoutMs = options.timeoutMs ?? 10000;
+  const maxRedirects = options.maxRedirects ?? 5;
+  const maxBytes = options.maxBytes ?? 10 * 1024 * 1024; // 10MB cap
+  const timeoutMs = options.timeoutMs ?? 15000;
 
   let currentUrl = initialUrl;
   let redirectsRemaining = maxRedirects;
@@ -262,16 +280,25 @@ export async function safeFetchArticleHtml(
         throw new Error(`SSRF Guard Blocked: ${ssrfCheck.error}`);
       }
 
-      // 2. Fetch with manual redirect locking
+      // 2. Fetch with genuine desktop browser headers & manual redirect locking
       const response = await fetch(currentUrl, {
         signal: controller.signal,
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 IELTS-Scribe/1.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
           Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Cache-Control": "no-cache",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+          Referer: "https://www.google.com/",
+          "Cache-Control": "max-age=0",
+          "Sec-Ch-Ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+          "Sec-Ch-Ua-Mobile": "?0",
+          "Sec-Ch-Ua-Platform": '"Windows"',
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "cross-site",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
         },
         redirect: "manual",
       });
@@ -279,7 +306,7 @@ export async function safeFetchArticleHtml(
       // 3. Handle HTTP 3xx Redirects safely
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         if (redirectsRemaining <= 0) {
-          throw new Error("Số lần chuyển hướng (redirect) vượt quá giới hạn an toàn (Max 2).");
+          throw new Error("Số lần chuyển hướng (redirect) vượt quá giới hạn cho phép.");
         }
 
         const locationHeader = response.headers.get("location");
@@ -303,11 +330,11 @@ export async function safeFetchArticleHtml(
       if (contentLengthHeader) {
         const declaredSize = parseInt(contentLengthHeader, 10);
         if (!isNaN(declaredSize) && declaredSize > maxBytes) {
-          throw new Error(`Kích thước bài viết vượt quá giới hạn an toàn (${Math.round(maxBytes / 1024 / 1024)}MB).`);
+          // If content length is too large, we still stream up to maxBytes
         }
       }
 
-      // 5. Streaming Body Byte Counter
+      // 5. Streaming Body Byte Counter with graceful termination
       if (!response.body) {
         throw new Error("Phản hồi từ máy chủ nguồn không có nội dung body.");
       }
@@ -322,11 +349,11 @@ export async function safeFetchArticleHtml(
 
         if (value) {
           totalBytesReceived += value.length;
-          if (totalBytesReceived > maxBytes) {
-            controller.abort();
-            throw new Error(`Dung lượng tải bài viết vượt ngưỡng tối đa (${Math.round(maxBytes / 1024 / 1024)}MB).`);
-          }
           chunks.push(value);
+          // Gracefully stop reading if maximum buffer size reached, without throwing error
+          if (totalBytesReceived >= maxBytes) {
+            break;
+          }
         }
       }
 

@@ -107,10 +107,10 @@ export function checkRateLimit(
  * Pre-configured rate limiter checkpoints
  */
 export const RateLimiters = {
-  // /api/parse-article: 10 req / minute
+  // /api/parse-article: 30 req / minute
   parseArticle: (req: NextRequest): RateLimitResult => {
     const ip = getClientIp(req);
-    return checkRateLimit(`parse_article:${ip}`, 10, 60 * 1000);
+    return checkRateLimit(`parse_article:${ip}`, 30, 60 * 1000);
   },
 
   // /api/ai/paraphrase: 15 req / minute
