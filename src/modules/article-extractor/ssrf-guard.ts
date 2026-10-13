@@ -212,16 +212,29 @@ export async function validateUrlAgainstSsrf(rawUrl: string): Promise<{
         resolvedIps = lookupResults.map((r) => r.address);
       }
     } catch {
-      // Fallback to trusted public DNS resolver if OS DNS encounters local ISP block
+      // Serverless-safe fallback via DNS over HTTPS (Port 443 - zero UDP blocking in AWS Lambda)
       try {
-        const resolver = new dns.promises.Resolver();
-        resolver.setServers(["8.8.8.8", "1.1.1.1", "8.8.4.4"]);
-        const [ipv4s, ipv6s] = await Promise.allSettled([
-          resolver.resolve4(hostname),
-          resolver.resolve6(hostname),
-        ]);
-        if (ipv4s.status === "fulfilled") resolvedIps.push(...ipv4s.value);
-        if (ipv6s.status === "fulfilled") resolvedIps.push(...ipv6s.value);
+        const dohController = new AbortController();
+        const dohTimeout = setTimeout(() => dohController.abort(), 2500);
+        const dohRes = await fetch(
+          `https://dns.google/resolve?name=${encodeURIComponent(hostname)}&type=A`,
+          {
+            signal: dohController.signal,
+            headers: { Accept: "application/dns-json" },
+          }
+        );
+        clearTimeout(dohTimeout);
+
+        if (dohRes.ok) {
+          const dohData = (await dohRes.json()) as { Answer?: { data: string }[] };
+          if (dohData.Answer && Array.isArray(dohData.Answer)) {
+            for (const ans of dohData.Answer) {
+              if (net.isIP(ans.data)) {
+                resolvedIps.push(ans.data);
+              }
+            }
+          }
+        }
       } catch {}
     }
 

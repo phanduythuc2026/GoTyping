@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 
 export interface ParsedReadabilityOutput {
@@ -9,24 +9,24 @@ export interface ParsedReadabilityOutput {
   textContent: string;
 }
 
-export function extractReadableContent(html: string, url: string): ParsedReadabilityOutput | null {
+export function extractReadableContent(html: string, articleUrl?: string): ParsedReadabilityOutput | null {
   try {
-    const dom = new JSDOM(html, { url });
-    const doc = dom.window.document;
+    const { document } = parseHTML(html);
+    void articleUrl;
 
     // Extract meta title and author as early fallbacks
     const metaTitle =
-      doc.querySelector("meta[property='og:title']")?.getAttribute("content") ||
-      doc.querySelector("meta[name='twitter:title']")?.getAttribute("content") ||
-      doc.title?.trim() ||
+      document.querySelector("meta[property='og:title']")?.getAttribute("content") ||
+      document.querySelector("meta[name='twitter:title']")?.getAttribute("content") ||
+      document.title?.trim() ||
       "Untitled Article";
 
     const metaAuthor =
-      doc.querySelector("meta[name='author']")?.getAttribute("content") ||
-      doc.querySelector("meta[property='article:author']")?.getAttribute("content") ||
+      document.querySelector("meta[name='author']")?.getAttribute("content") ||
+      document.querySelector("meta[property='article:author']")?.getAttribute("content") ||
       undefined;
 
-    // Remove unwanted non-content elements
+    // Clean up unwanted non-content elements
     const unwantedSelectors = [
       "script",
       "style",
@@ -49,22 +49,21 @@ export function extractReadableContent(html: string, url: string): ParsedReadabi
     ];
 
     unwantedSelectors.forEach((selector) => {
-      doc.querySelectorAll(selector).forEach((el) => {
+      document.querySelectorAll(selector).forEach((el) => {
         try {
-          el.remove();
+          (el as unknown as { remove: () => void }).remove();
         } catch {}
       });
     });
 
-    // Tier 1: Mozilla Readability Engine
+    // Tier 1: Mozilla Readability Engine via lightweight linkedom
     try {
-      const clonedDoc = doc.cloneNode(true) as Document;
-      const reader = new Readability(clonedDoc, {
-        charThreshold: 40,
+      const reader = new Readability(document, {
+        charThreshold: 30,
       });
       const article = reader.parse();
 
-      if (article && article.textContent && article.textContent.trim().length >= 100) {
+      if (article && article.textContent && article.textContent.trim().length >= 80) {
         return {
           title: article.title?.trim() || metaTitle,
           byline: article.byline?.trim() || metaAuthor,
@@ -73,7 +72,9 @@ export function extractReadableContent(html: string, url: string): ParsedReadabi
           textContent: article.textContent.trim(),
         };
       }
-    } catch {}
+    } catch (e) {
+      console.warn("Readability linkedom parse fallback:", e);
+    }
 
     // Tier 2: Semantic Article Containers
     const containerSelectors = [
@@ -96,15 +97,15 @@ export function extractReadableContent(html: string, url: string): ParsedReadabi
     ];
 
     for (const selector of containerSelectors) {
-      const container = doc.querySelector(selector);
+      const container = document.querySelector(selector);
       if (container) {
         const paragraphs = Array.from(container.querySelectorAll("p, h2, h3, blockquote"))
-          .map((el) => el.textContent?.trim() || "")
+          .map((el) => (el as unknown as { textContent?: string }).textContent?.trim() || "")
           .filter((t) => t.length > 25);
 
         if (paragraphs.length >= 2) {
           const joinedText = paragraphs.join("\n\n");
-          if (joinedText.length >= 100) {
+          if (joinedText.length >= 80) {
             return {
               title: metaTitle,
               byline: metaAuthor,
@@ -117,8 +118,8 @@ export function extractReadableContent(html: string, url: string): ParsedReadabi
     }
 
     // Tier 3: All Valid Paragraphs Fallback
-    const allParagraphs = Array.from(doc.querySelectorAll("p"))
-      .map((p) => p.textContent?.trim() || "")
+    const allParagraphs = Array.from(document.querySelectorAll("p"))
+      .map((el) => (el as unknown as { textContent?: string }).textContent?.trim() || "")
       .filter((t) => t.length > 30 && !t.includes("cookie") && !t.includes("copyright"));
 
     if (allParagraphs.length >= 2) {
@@ -134,8 +135,8 @@ export function extractReadableContent(html: string, url: string): ParsedReadabi
     }
 
     // Tier 4: Body text content if nothing else worked
-    const bodyText = doc.body?.textContent?.replace(/\s+/g, " ").trim();
-    if (bodyText && bodyText.length >= 150) {
+    const bodyText = document.body?.textContent?.replace(/\s+/g, " ").trim();
+    if (bodyText && bodyText.length >= 100) {
       return {
         title: metaTitle,
         byline: metaAuthor,
@@ -146,7 +147,7 @@ export function extractReadableContent(html: string, url: string): ParsedReadabi
 
     return null;
   } catch (error) {
-    console.error("Readability parsing error:", error);
+    console.error("Linkedom readability parsing error:", error);
     return null;
   }
 }
