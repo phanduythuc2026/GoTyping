@@ -1,0 +1,298 @@
+[
+  {
+    "phrase": "play a crucial role",
+    "category": "Academic Writing",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "play a vital role",
+    "category": "Academic Writing",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "play an important role",
+    "category": "Academic Writing",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "conduct research",
+    "category": "Methodology",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "carry out research",
+    "category": "Methodology",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "empirical evidence",
+    "category": "Evidence & Analysis",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "compelling evidence",
+    "category": "Evidence & Analysis",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "substantial evidence",
+    "category": "Evidence & Analysis",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "significant difference",
+    "category": "Statistics",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "statistically significant",
+    "category": "Statistics",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "widespread concern",
+    "category": "Social Issues",
+    "mechanical": true,
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "growing concern",
+    "category": "Social Issues",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "shed light on",
+    "category": "Argumentation",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "take into account",
+    "category": "Analysis",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "take into consideration",
+    "category": "Analysis",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "substantial increase",
+    "category": "Trends",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "dramatic increase",
+    "category": "Trends",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "sharp decline",
+    "category": "Trends",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "steady decline",
+    "category": "Trends",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "draw a conclusion",
+    "category": "Conclusion",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "reach a conclusion",
+    "category": "Conclusion",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "paramount importance",
+    "category": "Emphasis",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "vital importance",
+    "category": "Emphasis",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "profound impact",
+    "category": "Consequence",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "detrimental effect",
+    "category": "Consequence",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "adverse effect",
+    "category": "Consequence",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "beneficial effect",
+    "category": "Consequence",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "bear in mind",
+    "category": "Cognition",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "integral part",
+    "category": "Structure",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "indispensable part",
+    "category": "Structure",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "prevalent trend",
+    "category": "Observation",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "foster innovation",
+    "category": "Development",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "facilitate learning",
+    "category": "Education",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "pose a threat",
+    "category": "Risk",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "pose a challenge",
+    "category": "Risk",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "tackle the problem",
+    "category": "Problem Solving",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "address the issue",
+    "category": "Problem Solving",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "mitigate the impact",
+    "category": "Problem Solving",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "alleviate poverty",
+    "category": "Policy",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "exacerbate the situation",
+    "category": "Conflict",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "pave the way for",
+    "category": "Progression",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "striking similarity",
+    "category": "Comparison",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "stark contrast",
+    "category": "Comparison",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "in stark contrast to",
+    "category": "Comparison",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "in the foreseeable future",
+    "category": "Time & Future",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "raise awareness",
+    "category": "Communication",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "garner support",
+    "category": "Persuasion",
+    "cefrLevel": "C2"
+  },
+  {
+    "phrase": "spark controversy",
+    "category": "Debate",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "underlying cause",
+    "category": "Causation",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "root cause",
+    "category": "Causation",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "contributing factor",
+    "category": "Causation",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "driving force",
+    "category": "Motivation",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "gain insight into",
+    "category": "Understanding",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "provide valuable insight",
+    "category": "Understanding",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "cast doubt on",
+    "category": "Skepticism",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "from the perspective of",
+    "category": "Perspective",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "with respect to",
+    "category": "Reference",
+    "cefrLevel": "C1"
+  },
+  {
+    "phrase": "in terms of",
+    "category": "Reference",
+    "cefrLevel": "B2"
+  },
+  {
+    "phrase": "on the grounds that",
+    "category": "Reasoning",
+    "cefrLevel": "C1"
+  }
+]
