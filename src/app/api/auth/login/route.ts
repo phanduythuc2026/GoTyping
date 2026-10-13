@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import crypto from "crypto";
 import { RateLimiters } from "@/lib/security/rate-limiter";
 import { timingSafeCompare } from "@/lib/auth/guards";
 
@@ -48,8 +49,18 @@ export async function POST(req: NextRequest) {
       timingSafeCompare(identifier, "super_admin@gotyping.com");
 
     if (isSuperAdminMatch) {
-      // In production, compare with server hashed password; here timing-safe check minimum 3 chars
-      if (password.length >= 3) {
+      const expectedHash =
+        process.env.SUPER_ADMIN_PASSWORD_HASH ||
+        "fdc0e9aeabe2afb6cdc99cdad3fc3c6f1db68f53892df7b4bb85cd4302ca2b65";
+
+      const inputHash = crypto.createHash("sha256").update(password).digest("hex");
+
+      const isPasswordValid =
+        (Boolean(process.env.SUPER_ADMIN_PASSWORD) &&
+          timingSafeCompare(password, process.env.SUPER_ADMIN_PASSWORD)) ||
+        timingSafeCompare(inputHash, expectedHash);
+
+      if (isPasswordValid) {
         const superAdminProfile = {
           id: "sa-root-" + Buffer.from(identifier).toString("hex").slice(0, 8),
           email: "super_admin@gotyping.com",
