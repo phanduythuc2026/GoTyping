@@ -63,6 +63,22 @@ export default function AdminPage() {
   const [owaspModalData, setOwaspModalData] = useState<{ email: string; tempPass: string } | null>(null);
   const [copiedPass, setCopiedPass] = useState(false);
 
+  // User creation modal
+  const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [createUserName, setCreateUserName] = useState("");
+  const [createUserEmail, setCreateUserEmail] = useState("");
+  const [createUserRole, setCreateUserRole] = useState<"user" | "admin">("user");
+  const [createUserBand, setCreateUserBand] = useState<number>(7.5);
+  const [createUserPassword, setCreateUserPassword] = useState("");
+  const [createUserError, setCreateUserError] = useState<string | null>(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+
+  // Custom password reset state
+  const [targetUserForPassword, setTargetUserForPassword] = useState<ManagedUser | null>(null);
+  const [customPasswordInput, setCustomPasswordInput] = useState("");
+  const [isCustomPasswordMode, setIsCustomPasswordMode] = useState(true);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
   // Email update modal
   const [editingUserEmail, setEditingUserEmail] = useState<ManagedUser | null>(null);
   const [newEmailInput, setNewEmailInput] = useState("");
@@ -114,26 +130,85 @@ export default function AdminPage() {
     }
   };
 
-  const handleResetPasswordOwasp = async (targetUser: ManagedUser) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateUserError(null);
+    setIsCreatingUser(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_user",
+          fullName: createUserName,
+          email: createUserEmail,
+          role: createUserRole,
+          targetBand: createUserBand,
+          customPassword: createUserPassword || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setCreateUserError(data.error || "Không thể tạo tài khoản.");
+        return;
+      }
+
+      setIsCreateUserModalOpen(false);
+      setCreateUserName("");
+      setCreateUserEmail("");
+      setCreateUserPassword("");
+      await fetchUsers();
+      if (data.initialPassword) {
+        setOwaspModalData({
+          email: data.user.email,
+          tempPass: data.initialPassword,
+        });
+        setCopiedPass(false);
+      }
+    } catch {
+      setCreateUserError("Lỗi kết nối máy chủ khi tạo tài khoản.");
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
+  const handleOpenResetPassword = (targetUser: ManagedUser) => {
+    setTargetUserForPassword(targetUser);
+    setCustomPasswordInput("");
+    setIsCustomPasswordMode(true);
+  };
+
+  const handleExecutePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUserForPassword) return;
+    setIsResettingPassword(true);
+
     try {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "reset_password",
-          userId: targetUser.id,
+          userId: targetUserForPassword.id,
+          customPassword:
+            isCustomPasswordMode && customPasswordInput.trim()
+              ? customPasswordInput.trim()
+              : undefined,
         }),
       });
       const data = await res.json();
       if (data.success && data.temporaryPassword) {
         setOwaspModalData({
-          email: targetUser.email,
+          email: targetUserForPassword.email,
           tempPass: data.temporaryPassword,
         });
         setCopiedPass(false);
+        setTargetUserForPassword(null);
       }
     } catch (e) {
       console.error("Failed to reset password:", e);
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -635,13 +710,25 @@ export default function AdminPage() {
                   Thao tác bảo mật: Cấp lại mật khẩu chuẩn OWASP, thay đổi email và khóa tài khoản học viên.
                 </p>
               </div>
-              <button
-                onClick={fetchUsers}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Làm mới</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setCreateUserError(null);
+                    setIsCreateUserModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-sm cursor-pointer transition-colors"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Tạo tài khoản mới</span>
+                </button>
+                <button
+                  onClick={fetchUsers}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Làm mới</span>
+                </button>
+              </div>
             </div>
 
             {/* Users Table */}
@@ -732,11 +819,11 @@ export default function AdminPage() {
 
                       <td className="py-3.5 px-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* OWASP Password Reset Button */}
+                          {/* Custom / OWASP Password Reset Button */}
                           <button
-                            onClick={() => handleResetPasswordOwasp(u)}
+                            onClick={() => handleOpenResetPassword(u)}
                             className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-amber-400 border border-zinc-800 hover:border-amber-500/40 transition-colors cursor-pointer"
-                            title="Cấp lại mật khẩu đạt chuẩn OWASP (14+ ký tự)"
+                            title="Đổi mật khẩu tài khoản (Tùy chọn hoặc ngẫu nhiên OWASP)"
                           >
                             <KeyRound className="w-3.5 h-3.5" />
                           </button>
@@ -780,12 +867,11 @@ export default function AdminPage() {
                   <div className="flex items-center gap-2 text-emerald-400">
                     <KeyRound className="w-6 h-6" />
                     <h4 className="text-base font-bold text-zinc-100">
-                      Mật Khẩu Mới Đạt Chuẩn OWASP
+                      Cập Nhật Mật Khẩu Thành Công
                     </h4>
                   </div>
                   <p className="text-xs text-zinc-400">
-                    Đã cấp phát mật khẩu ngẫu nhiên độ an toàn cao (chứa chữ hoa, chữ thường, số và ký tự đặc biệt) cho học viên{" "}
-                    <strong className="text-zinc-200">{owaspModalData.email}</strong>:
+                    Đã thiết lập mật khẩu mới cho tài khoản <strong className="text-zinc-200">{owaspModalData.email}</strong>. Mật khẩu cũ đã bị xóa bỏ và hủy ngay lập tức trên hệ thống:
                   </p>
 
                   <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex items-center justify-between gap-2">
@@ -812,6 +898,200 @@ export default function AdminPage() {
                       Đã lưu & Đóng
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Create User Modal */}
+            {isCreateUserModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-surface border border-surface-border rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-4">
+                  <div className="flex items-center gap-2 text-indigo-400">
+                    <PlusCircle className="w-6 h-6" />
+                    <h4 className="text-base font-bold text-zinc-100">
+                      Tạo Tài Khoản Học Viên Mới
+                    </h4>
+                  </div>
+                  <p className="text-xs text-zinc-400">
+                    Tạo tài khoản trực tiếp từ bảng quản trị Super Admin. Tài khoản có thể đăng nhập ngay mà không gặp lỗi.
+                  </p>
+
+                  {createUserError && (
+                    <div className="p-3 text-xs text-rose-400 bg-rose-950/40 border border-rose-800/40 rounded-xl">
+                      {createUserError}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleCreateUser} className="flex flex-col gap-3.5">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-zinc-300">Họ và tên học viên</label>
+                      <input
+                        type="text"
+                        required
+                        value={createUserName}
+                        onChange={(e) => setCreateUserName(e.target.value)}
+                        placeholder="Nguyễn Văn A"
+                        className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-zinc-300">Email học tập</label>
+                      <input
+                        type="email"
+                        required
+                        value={createUserEmail}
+                        onChange={(e) => setCreateUserEmail(e.target.value)}
+                        placeholder="hocvien@gmail.com"
+                        className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-semibold text-zinc-300">Vai trò (Role)</label>
+                        <select
+                          value={createUserRole}
+                          onChange={(e) => setCreateUserRole(e.target.value as "user" | "admin")}
+                          className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        >
+                          <option value="user">Member (Học viên)</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-semibold text-zinc-300">Target Band</label>
+                        <select
+                          value={createUserBand}
+                          onChange={(e) => setCreateUserBand(parseFloat(e.target.value))}
+                          className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-amber-400 font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        >
+                          {[5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0].map((b) => (
+                            <option key={b} value={b}>Band {b.toFixed(1)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-zinc-300">Mật khẩu ban đầu</label>
+                        <span className="text-[10px] text-zinc-500">Để trống để tự sinh chuẩn OWASP</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={createUserPassword}
+                        onChange={(e) => setCreateUserPassword(e.target.value)}
+                        placeholder="Nhập mật khẩu hoặc để trống..."
+                        className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={() => setIsCreateUserModalOpen(false)}
+                        className="px-3.5 py-2 rounded-xl text-xs text-zinc-400 hover:bg-zinc-800 cursor-pointer"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isCreatingUser}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-semibold shadow-md cursor-pointer transition-all"
+                      >
+                        {isCreatingUser ? "Đang tạo..." : "Tạo Tài Khoản"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Custom Password Reset Modal */}
+            {targetUserForPassword && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-surface border border-surface-border rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col gap-4">
+                  <div className="flex items-center gap-2 text-amber-400">
+                    <KeyRound className="w-6 h-6" />
+                    <h4 className="text-base font-bold text-zinc-100">
+                      Đổi Mật Khẩu Cho Tài Khoản
+                    </h4>
+                  </div>
+                  <p className="text-xs text-zinc-400">
+                    Đổi mật khẩu cho học viên <strong className="text-zinc-200">{targetUserForPassword.display_name}</strong> ({targetUserForPassword.email}).
+                  </p>
+
+                  <div className="p-3 bg-rose-950/40 border border-rose-800/40 rounded-xl text-[11px] text-rose-300 leading-relaxed">
+                    ⚠️ <strong>Lưu ý bảo mật:</strong> Khi xác nhận đổi mật khẩu, <strong>mật khẩu hiện tại của tài khoản này sẽ bị xóa bỏ và hủy ngay lập tức</strong>, không thể sử dụng để đăng nhập lại được nữa.
+                  </div>
+
+                  <form onSubmit={handleExecutePasswordReset} className="flex flex-col gap-3.5">
+                    {/* Mode switcher tabs */}
+                    <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomPasswordMode(true)}
+                        className={`flex-1 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                          isCustomPasswordMode
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        Tự nhập mật khẩu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomPasswordMode(false)}
+                        className={`flex-1 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                          !isCustomPasswordMode
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        Tạo ngẫu nhiên OWASP
+                      </button>
+                    </div>
+
+                    {isCustomPasswordMode ? (
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-semibold text-zinc-300">
+                          Nhập mật khẩu mới tùy ý (tối thiểu 6 ký tự)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          minLength={6}
+                          value={customPasswordInput}
+                          onChange={(e) => setCustomPasswordInput(e.target.value)}
+                          placeholder="Ví dụ: HocVienIELTS_2026!"
+                          className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 font-mono"
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-xl text-xs text-zinc-400">
+                        Hệ thống sẽ tự động tạo một mật khẩu 14 ký tự bảo mật cao ngẫu nhiên chứa chữ hoa, chữ thường, số và ký tự đặc biệt.
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={() => setTargetUserForPassword(null)}
+                        className="px-3.5 py-2 rounded-xl text-xs text-zinc-400 hover:bg-zinc-800 cursor-pointer"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isResettingPassword}
+                        className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white text-xs font-semibold shadow-md cursor-pointer transition-all"
+                      >
+                        {isResettingPassword ? "Đang xử lý..." : "Xác Nhận Đổi Mật Khẩu"}
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}

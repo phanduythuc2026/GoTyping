@@ -100,6 +100,19 @@ export function evaluateTypingAgainstBand(params: {
   const wpmGap = netWpm - benchmark.minWpm;
   const accuracyGap = Number((accuracy - benchmark.minAccuracy).toFixed(1));
 
+  if (netWpm === 0 && accuracy === 0) {
+    return {
+      targetBand,
+      isQualified: false,
+      status: "near_target",
+      badgeText: `CHỜ BẮT ĐẦU`,
+      badgeColorClass: "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700",
+      feedback: `Chưa có thông tin đối soát. Hãy bắt đầu gõ để hệ thống đo lường thời gian thực.`,
+      wpmGap: -benchmark.minWpm,
+      accuracyGap: -benchmark.minAccuracy,
+    };
+  }
+
   if (netWpm >= benchmark.minWpm + 10 && accuracy >= benchmark.minAccuracy) {
     return {
       targetBand,

@@ -83,6 +83,31 @@ export default function WorkspacePage() {
 
         const totalErrors = Object.values(metrics.errorLog).reduce((a, b) => a + b, 0);
 
+        // Save immediately to account-isolated localStorage
+        if (typeof window !== "undefined") {
+          try {
+            const userKey = `gotyping_sessions_${currentUser.id}`;
+            const existingRaw = localStorage.getItem(userKey);
+            const userSessions = existingRaw ? JSON.parse(existingRaw) : [];
+            userSessions.unshift({
+              id: "sess-" + Date.now(),
+              title: currentArticle?.title || "IELTS Academic Practice",
+              domain: currentArticle?.sourceDomain || "academic.edu",
+              wpm: metrics.rawWpm,
+              netWpm: metrics.netWpm,
+              accuracy: metrics.accuracy,
+              words: metrics.completedWords,
+              timeSpentSeconds: metrics.elapsedSeconds,
+              keyErrorsSummary: metrics.errorLog,
+              date: new Date().toLocaleString("vi-VN"),
+              completedAt: new Date().toISOString(),
+            });
+            localStorage.setItem(userKey, JSON.stringify(userSessions.slice(0, 50)));
+          } catch (e) {
+            console.error("Local user session storage error:", e);
+          }
+        }
+
         await fetch("/api/typing/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -105,7 +130,7 @@ export default function WorkspacePage() {
         console.warn("Could not sync typing session:", err);
       }
     },
-    []
+    [currentArticle]
   );
 
   const handleArticleLoaded = (article: ExtractedArticle) => {

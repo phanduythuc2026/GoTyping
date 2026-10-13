@@ -34,7 +34,7 @@ export function calculateTypingMetrics(params: {
       elapsedSeconds: 0,
       rawWpm: 0,
       netWpm: 0,
-      accuracy: 100,
+      accuracy: 0,
       consistency: 100,
       totalKeystrokes: 0,
       correctKeystrokes: 0,
@@ -58,7 +58,7 @@ export function calculateTypingMetrics(params: {
   // Accuracy: correct keystrokes / total keystrokes * 100
   const accuracy = totalKeystrokes > 0
     ? Number(((correctKeystrokes / totalKeystrokes) * 100).toFixed(2))
-    : 100;
+    : 0;
 
   // Consistency: measure variance in rolling WPM (100% is perfectly consistent)
   let consistency = 100;

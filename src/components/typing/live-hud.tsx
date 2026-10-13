@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useTypingStore } from "@/modules/typing-engine/store";
 import { useAuthStore } from "@/lib/auth-store";
 import { evaluateTypingAgainstBand } from "@/modules/typing-engine/benchmark-evaluator";
-import { RotateCcw, ShieldCheck, ShieldAlert, Zap, Timer, Award, Target } from "lucide-react";
+import { RotateCcw, ShieldCheck, ShieldAlert, Zap, Timer, Award, Target, Pencil } from "lucide-react";
+import { TargetBandModal } from "@/components/layout/target-band-modal";
 
 export const LiveHUD: React.FC = () => {
+  const [isBandModalOpen, setIsBandModalOpen] = useState(false);
   const {
     status,
     metrics,
@@ -54,94 +56,109 @@ export const LiveHUD: React.FC = () => {
   });
 
   return (
-    <div className="w-full bg-white/95 dark:bg-surface/80 backdrop-blur-md border border-slate-300 dark:border-surface-border rounded-xl px-4 sm:px-6 py-3 sm:py-4 shadow-md dark:shadow-xl flex flex-wrap items-center justify-between gap-3 sm:gap-4 transition-all">
-      {/* Mobile Compact Bar (< sm) */}
-      <div className="flex sm:hidden items-center justify-between w-full py-1 border-b border-slate-200 dark:border-surface-border font-mono text-xs font-bold text-slate-700 dark:text-zinc-300">
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-surface-elevated border border-slate-200 dark:border-surface-border text-indigo-600 dark:text-indigo-400">
-          <Zap className="w-3 h-3" />
-          <span className="tabular-nums">{metrics.netWpm} WPM</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-surface-elevated border border-slate-200 dark:border-surface-border text-emerald-600 dark:text-emerald-400">
-          <Award className="w-3 h-3" />
-          <span className="tabular-nums">{metrics.accuracy.toFixed(1)}% ACC</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-surface-elevated border border-slate-200 dark:border-surface-border text-slate-800 dark:text-zinc-200">
-          <Timer className="w-3 h-3 text-slate-500 dark:text-zinc-400" />
-          <span className="tabular-nums">
-            {pressureMode !== "free" && timeRemaining !== null
-              ? formatTime(timeRemaining)
-              : formatTime(metrics.elapsedSeconds)}
-          </span>
-        </div>
-      </div>
-
-      {/* Metrics Row (Desktop / Tablet >= sm) */}
-      <div className="hidden sm:flex items-center gap-6 sm:gap-8 flex-wrap">
-        {/* Net WPM */}
-        <div className="flex flex-col">
-          <span className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-            Net WPM
-          </span>
-          <span className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono tracking-tight tabular-nums">
-            {metrics.netWpm}
-          </span>
-        </div>
-
-        {/* Accuracy */}
-        <div className="flex flex-col">
-          <span className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1.5">
-            <Award className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-            Accuracy
-          </span>
-          <span
-            className={`text-3xl font-extrabold font-mono tracking-tight tabular-nums ${
-              metrics.accuracy >= 95
-                ? "text-emerald-600 dark:text-emerald-400"
-                : metrics.accuracy >= 85
-                ? "text-amber-600 dark:text-amber-400"
-                : "text-rose-600 dark:text-rose-400"
-            }`}
-          >
-            {metrics.accuracy.toFixed(1)}%
-          </span>
-        </div>
-
-        {/* Timer / Pressure Countdown */}
-        <div className="flex flex-col">
-          <span className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1.5">
-            <Timer className={`w-3.5 h-3.5 ${isPressureWarning ? "text-rose-500 animate-pulse" : "text-slate-500 dark:text-zinc-400"}`} />
-            {pressureMode === "free" ? "Thời gian" : "Thời gian còn lại"}
-          </span>
-          <span
-            className={`text-3xl font-extrabold font-mono tracking-tight tabular-nums ${
-              isPressureWarning
-                ? "text-rose-600 dark:text-rose-400 animate-pulse"
-                : pressureMode !== "free"
-                ? "text-amber-600 dark:text-amber-300"
-                : "text-slate-800 dark:text-zinc-200"
-            }`}
-          >
-            {pressureMode !== "free" && timeRemaining !== null
-              ? formatTime(timeRemaining)
-              : formatTime(metrics.elapsedSeconds)}
-          </span>
-        </div>
-
-        {/* Target Band Benchmark Evaluator Badge */}
-        <div className="hidden lg:flex flex-col justify-center">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1">
-            <Target className="w-3 h-3 text-amber-500 dark:text-amber-400" />
-            Đối Soát Band {targetBand.toFixed(1)}
-          </span>
-          <div
-            className={`mt-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all ${bandEval.badgeColorClass}`}
-            title={bandEval.feedback}
-          >
-            {bandEval.badgeText}
+    <>
+      <TargetBandModal isOpen={isBandModalOpen} onClose={() => setIsBandModalOpen(false)} />
+      <div className="w-full bg-white/95 dark:bg-surface/80 backdrop-blur-md border border-slate-300 dark:border-surface-border rounded-xl px-4 sm:px-6 py-3 sm:py-4 shadow-md dark:shadow-xl flex flex-wrap items-center justify-between gap-3 sm:gap-4 transition-all">
+        {/* Mobile Compact Bar (< sm) */}
+        <div className="flex sm:hidden items-center justify-between w-full py-1 border-b border-slate-200 dark:border-surface-border font-mono text-xs font-bold text-slate-700 dark:text-zinc-300">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-surface-elevated border border-slate-200 dark:border-surface-border text-indigo-600 dark:text-indigo-400">
+            <Zap className="w-3 h-3" />
+            <span className="tabular-nums">{metrics.netWpm} WPM</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-surface-elevated border border-slate-200 dark:border-surface-border text-emerald-600 dark:text-emerald-400">
+            <Award className="w-3 h-3" />
+            <span className="tabular-nums">
+              {metrics.totalKeystrokes === 0 ? "Chưa có thông tin" : `${metrics.accuracy.toFixed(1)}% ACC`}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-surface-elevated border border-slate-200 dark:border-surface-border text-slate-800 dark:text-zinc-200">
+            <Timer className="w-3 h-3 text-slate-500 dark:text-zinc-400" />
+            <span className="tabular-nums">
+              {pressureMode !== "free" && timeRemaining !== null
+                ? formatTime(timeRemaining)
+                : formatTime(metrics.elapsedSeconds)}
+            </span>
           </div>
         </div>
-      </div>
+
+        {/* Metrics Row (Desktop / Tablet >= sm) */}
+        <div className="hidden sm:flex items-center gap-6 sm:gap-8 flex-wrap">
+          {/* Net WPM */}
+          <div className="flex flex-col">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+              Net WPM
+            </span>
+            <span className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono tracking-tight tabular-nums">
+              {metrics.netWpm}
+            </span>
+          </div>
+
+          {/* Accuracy */}
+          <div className="flex flex-col">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1.5">
+              <Award className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+              Accuracy
+            </span>
+            {metrics.totalKeystrokes === 0 ? (
+              <span className="text-base sm:text-lg font-bold font-sans text-slate-400 dark:text-zinc-500 tracking-tight py-1">
+                Chưa có thông tin
+              </span>
+            ) : (
+              <span
+                className={`text-3xl font-extrabold font-mono tracking-tight tabular-nums ${
+                  metrics.accuracy >= 95
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : metrics.accuracy >= 85
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-rose-600 dark:text-rose-400"
+                }`}
+              >
+                {metrics.accuracy.toFixed(1)}%
+              </span>
+            )}
+          </div>
+
+          {/* Timer / Pressure Countdown */}
+          <div className="flex flex-col">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1.5">
+              <Timer className={`w-3.5 h-3.5 ${isPressureWarning ? "text-rose-500 animate-pulse" : "text-slate-500 dark:text-zinc-400"}`} />
+              {pressureMode === "free" ? "Thời gian" : "Thời gian còn lại"}
+            </span>
+            <span
+              className={`text-3xl font-extrabold font-mono tracking-tight tabular-nums ${
+                isPressureWarning
+                  ? "text-rose-600 dark:text-rose-400 animate-pulse"
+                  : pressureMode !== "free"
+                  ? "text-amber-600 dark:text-amber-300"
+                  : "text-slate-800 dark:text-zinc-200"
+              }`}
+            >
+              {pressureMode !== "free" && timeRemaining !== null
+                ? formatTime(timeRemaining)
+                : formatTime(metrics.elapsedSeconds)}
+            </span>
+          </div>
+
+          {/* Target Band Benchmark Evaluator Badge */}
+          <div
+            onClick={() => setIsBandModalOpen(true)}
+            className="hidden lg:flex flex-col justify-center cursor-pointer group"
+            title="Nhấp để tùy chỉnh Band điểm mục tiêu IELTS (5.0 - 9.0)"
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1 group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors">
+              <Target className="w-3 h-3 text-amber-500 dark:text-amber-400" />
+              Đối Soát Band {targetBand.toFixed(1)}
+              <Pencil className="w-2.5 h-2.5 opacity-60 group-hover:opacity-100 group-hover:rotate-12 transition-all ml-0.5 text-amber-500" />
+            </span>
+            <div
+              className={`mt-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all group-hover:scale-105 shadow-xs ${bandEval.badgeColorClass}`}
+              title={bandEval.feedback}
+            >
+              {bandEval.badgeText}
+            </div>
+          </div>
+        </div>
 
       {/* Progress & Quick Actions */}
       <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
@@ -232,5 +249,6 @@ export const LiveHUD: React.FC = () => {
         </button>
       </div>
     </div>
+    </>
   );
 };

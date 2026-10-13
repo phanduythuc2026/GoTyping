@@ -3,8 +3,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Keyboard, Lock, Mail, User, ArrowRight, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -12,7 +10,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const supabase = createClient();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,21 +18,26 @@ export default function RegisterPage() {
     setSuccessMsg(null);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName,
+          email,
+          password,
+        }),
       });
 
-      if (error) {
-        throw error;
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Đăng ký thất bại.");
       }
 
-      setSuccessMsg("Đăng ký thành công! Bạn có thể đăng nhập ngay.");
+      setSuccessMsg(data.message || "Đăng ký thành công! Bạn có thể đăng nhập ngay.");
+      setFullName("");
+      setEmail("");
+      setPassword("");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Đăng ký thất bại.";
       setErrorMsg(msg);

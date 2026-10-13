@@ -23,17 +23,32 @@ const sessionSchema = z.object({
   articleId: z.string().optional().nullable(),
 });
 
+declare global {
+  var __gotyping_user_sessions: Record<string, Record<string, unknown>[]> | undefined;
+}
+
+function getUserSessions(userId: string): Record<string, unknown>[] {
+  if (!globalThis.__gotyping_user_sessions) {
+    globalThis.__gotyping_user_sessions = {};
+  }
+  if (!globalThis.__gotyping_user_sessions[userId]) {
+    globalThis.__gotyping_user_sessions[userId] = [];
+  }
+  return globalThis.__gotyping_user_sessions[userId];
+}
+
 /**
- * GET: Issues cryptographically signed anti-replay session nonce
+ * GET: Issues cryptographically signed anti-replay session nonce or lists user sessions
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const action = searchParams.get("action");
+  const userId = searchParams.get("userId");
 
   if (action === "nonce") {
-    const userId = searchParams.get("userId") || "guest";
+    const targetUserId = userId || "guest";
     const articleId = searchParams.get("articleId");
-    const nonce = generateSessionNonce(userId, articleId);
+    const nonce = generateSessionNonce(targetUserId, articleId);
 
     return NextResponse.json({
       success: true,
@@ -42,8 +57,16 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (userId) {
+    const sessions = getUserSessions(userId);
+    return NextResponse.json({
+      success: true,
+      sessions,
+    });
+  }
+
   return NextResponse.json(
-    { success: false, error: "Action không hợp lệ." },
+    { success: false, error: "Action hoặc userId không hợp lệ." },
     { status: 400 }
   );
 }
@@ -165,6 +188,20 @@ export async function POST(req: NextRequest) {
       key_errors_summary: keyErrorsSummary,
     };
 
+    const sessionRecord = {
+      id: "sess-" + Date.now(),
+      user_id: userId,
+      net_wpm: Math.round(netWpm),
+      wpm: Math.round(wpm),
+      accuracy: Number(accuracy.toFixed(2)),
+      completed_words: completedWords,
+      time_spent_seconds: Math.round(timeSpentSeconds),
+      error_count: errorCount,
+      key_errors_summary: keyErrorsSummary,
+      created_at: new Date().toISOString(),
+    };
+    getUserSessions(userId).unshift(sessionRecord);
+
     const { data, error } = await client
       .from("typing_sessions")
       .insert(payload)
@@ -177,14 +214,7 @@ export async function POST(req: NextRequest) {
         success: true,
         persisted: false,
         message: "Phiên gõ đã được ghi nhận an toàn vào bộ nhớ tạm.",
-        session: {
-          id: "sess-" + Date.now(),
-          user_id: userId,
-          net_wpm: netWpm,
-          accuracy,
-          completed_words: completedWords,
-          verified_anti_cheat: true,
-        },
+        session: sessionRecord,
       });
     }
 
@@ -192,7 +222,7 @@ export async function POST(req: NextRequest) {
       success: true,
       persisted: true,
       message: "Đồng bộ kết quả phiên gõ học thuật thành công.",
-      session: data,
+      session: data || sessionRecord,
     });
   } catch (err: unknown) {
     console.error("[SECURITY_AUDIT_LOG]", {

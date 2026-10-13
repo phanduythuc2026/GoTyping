@@ -96,7 +96,52 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Standard student / user resolution
+    // 3. User Registry Resolution (Verifies registered users & checks invalidated passwords)
+    const { findUserByEmail } = await import("@/lib/auth/user-registry");
+    const registeredUser = findUserByEmail(identifier);
+
+    if (registeredUser) {
+      if (!registeredUser.is_active) {
+        return NextResponse.json(
+          { success: false, error: "Tài khoản của bạn đã bị tạm khóa bởi Quản trị viên." },
+          { status: 403 }
+        );
+      }
+
+      if (registeredUser.passwordHash) {
+        const inputHash = crypto.createHash("sha256").update(password).digest("hex");
+        if (inputHash !== registeredUser.passwordHash) {
+          return NextResponse.json(
+            { success: false, error: "Mật khẩu không chính xác. Mật khẩu cũ đã bị vô hiệu hóa hoàn toàn." },
+            { status: 401 }
+          );
+        }
+      }
+
+      const userProfile = {
+        id: registeredUser.id,
+        email: registeredUser.email,
+        username: registeredUser.email.replace(/@.*/, ""),
+        display_name: registeredUser.display_name,
+        role: registeredUser.role,
+        target_band: registeredUser.target_band,
+      };
+
+      const response = NextResponse.json({
+        success: true,
+        user: userProfile,
+      });
+
+      response.cookies.set("gotyping_role", registeredUser.role, {
+        path: "/",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+
+      return response;
+    }
+
+    // 4. Fallback for demo student account
     if (identifier === "student" || identifier.includes("@")) {
       const studentProfile = {
         id: "usr-" + Buffer.from(identifier).toString("hex").slice(0, 8),

@@ -2,51 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateOwaspCompliantPassword } from "@/lib/security";
 import { z } from "zod";
 import { isAuthorizedSuperAdmin } from "@/lib/auth/guards";
-
-// Mock persistent in-memory user registry for demo/fallback environment
-interface ManagedUser {
-  id: string;
-  email: string;
-  display_name: string;
-  role: "super_admin" | "admin" | "user";
-  target_band: number;
-  total_sessions_completed: number;
-  is_active: boolean;
-  created_at: string;
-}
-
-const mockUsersRegistry: ManagedUser[] = [
-  {
-    id: "usr-001",
-    email: "scholar_ielts@academic.edu.vn",
-    display_name: "Nguyễn Hoàng Nam",
-    role: "user",
-    target_band: 7.5,
-    total_sessions_completed: 42,
-    is_active: true,
-    created_at: "2026-10-01 09:30",
-  },
-  {
-    id: "usr-002",
-    email: "minh_ielts_8@gmail.com",
-    display_name: "Trần Minh",
-    role: "user",
-    target_band: 8.0,
-    total_sessions_completed: 67,
-    is_active: true,
-    created_at: "2026-10-05 14:15",
-  },
-  {
-    id: "usr-003",
-    email: "le_ha_scholar@outlook.com",
-    display_name: "Lê Thu Hà",
-    role: "user",
-    target_band: 7.0,
-    total_sessions_completed: 18,
-    is_active: false,
-    created_at: "2026-10-08 11:20",
-  },
-];
+import {
+  getUsers,
+  findUserById,
+  createUser,
+  updateUserPassword,
+} from "@/lib/auth/user-registry";
 
 // GET: List users
 export async function GET(req: NextRequest) {
@@ -59,15 +20,25 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    users: mockUsersRegistry,
+    users: getUsers(),
   });
 }
 
-// POST: Admin Actions (reset_password, update_email, toggle_ban, change_band, change_role)
+// POST: Admin Actions (create_user, reset_password, update_email, toggle_ban, change_band, change_role)
 const actionSchema = z.object({
-  action: z.enum(["reset_password", "update_email", "toggle_ban", "change_band", "change_role"]),
-  userId: z.string(),
+  action: z.enum([
+    "create_user",
+    "reset_password",
+    "update_email",
+    "toggle_ban",
+    "change_band",
+    "change_role",
+  ]),
+  userId: z.string().optional(),
+  fullName: z.string().optional(),
+  email: z.string().email().optional(),
   newEmail: z.string().email().optional(),
+  customPassword: z.string().optional(),
   targetBand: z.number().min(5.0).max(9.0).optional(),
   role: z.enum(["super_admin", "admin", "user"]).optional(),
 });
@@ -91,9 +62,59 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { action, userId, newEmail, targetBand, role } = parsed.data;
-    const targetUser = mockUsersRegistry.find((u) => u.id === userId);
+    const {
+      action,
+      userId,
+      fullName,
+      email,
+      newEmail,
+      customPassword,
+      targetBand,
+      role,
+    } = parsed.data;
 
+    // 1. Create User Action (Super Admin creates brand new account)
+    if (action === "create_user") {
+      if (!email || !fullName) {
+        return NextResponse.json(
+          { success: false, error: "Vui lòng nhập họ tên và email hợp lệ." },
+          { status: 400 }
+        );
+      }
+
+      const rawPassword = customPassword?.trim() || generateOwaspCompliantPassword(14);
+      const result = createUser({
+        email,
+        fullName,
+        role: role || "user",
+        targetBand: targetBand || 7.5,
+        password: rawPassword,
+      });
+
+      if (!result.success || !result.user) {
+        return NextResponse.json(
+          { success: false, error: result.error || "Không thể tạo tài khoản mới." },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Đã tạo tài khoản thành công cho ${result.user.display_name} (${result.user.email}).`,
+        user: result.user,
+        initialPassword: rawPassword,
+      });
+    }
+
+    // For other actions, userId is required
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "Thiếu userId cho tác vụ này." },
+        { status: 400 }
+      );
+    }
+
+    const targetUser = findUserById(userId);
     if (!targetUser) {
       return NextResponse.json(
         { success: false, error: "Không tìm thấy người dùng được chỉ định." },
@@ -101,18 +122,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Reset Password Action
+    // 2. Reset / Change Password Action (Supports Custom Password & OWASP random, wipes old password immediately)
     if (action === "reset_password") {
-      const temporarySecurePassword = generateOwaspCompliantPassword(14);
+      const finalPassword =
+        customPassword && customPassword.trim().length >= 6
+          ? customPassword.trim()
+          : generateOwaspCompliantPassword(14);
+
+      const updateResult = updateUserPassword(targetUser.id, finalPassword);
+      if (!updateResult.success) {
+        return NextResponse.json(
+          { success: false, error: updateResult.error || "Không thể đổi mật khẩu." },
+          { status: 400 }
+        );
+      }
+
       return NextResponse.json({
         success: true,
-        message: `Đã cấp lại mật khẩu đạt chuẩn OWASP cho ${targetUser.email}.`,
-        temporaryPassword: temporarySecurePassword,
-        owaspCompliant: true,
+        message: `Đã đổi mật khẩu thành công cho ${targetUser.email}. Mật khẩu cũ đã bị hủy ngay lập tức và không còn hiệu lực.`,
+        temporaryPassword: finalPassword,
+        isCustom: Boolean(customPassword && customPassword.trim().length >= 6),
       });
     }
 
-    // 2. Update Email Action
+    // 3. Update Email Action
     if (action === "update_email") {
       if (!newEmail) {
         return NextResponse.json(
@@ -123,12 +156,12 @@ export async function POST(req: NextRequest) {
       targetUser.email = newEmail;
       return NextResponse.json({
         success: true,
-        message: `Đã cập nhật email của người dùng thành ${newEmail} và đồng bộ sang profiles.`,
+        message: `Đã cập nhật email của người dùng thành ${newEmail}.`,
         updatedEmail: newEmail,
       });
     }
 
-    // 3. Toggle Ban / Active Status
+    // 4. Toggle Ban / Active Status
     if (action === "toggle_ban") {
       targetUser.is_active = !targetUser.is_active;
       return NextResponse.json({
@@ -140,7 +173,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Change Target Band
+    // 5. Change Target Band
     if (action === "change_band") {
       if (targetBand !== undefined) {
         targetUser.target_band = targetBand;
@@ -152,7 +185,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Change Role
+    // 6. Change Role
     if (action === "change_role") {
       if (role) {
         targetUser.role = role;

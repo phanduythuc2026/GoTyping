@@ -165,23 +165,30 @@ export const revalidate = 0;
 declare global {
   var __gotyping_admin_leaderboard: LeaderboardScholar[] | undefined;
   var __gotyping_cohort_week: string | undefined;
-}
-
-function getEffectiveLeaderboard(): LeaderboardScholar[] {
-  if (!globalThis.__gotyping_admin_leaderboard || globalThis.__gotyping_admin_leaderboard.length === 0) {
-    globalThis.__gotyping_admin_leaderboard = JSON.parse(JSON.stringify(FALLBACK_WEEKLY_SCHOLARS));
-  }
-  return globalThis.__gotyping_admin_leaderboard || FALLBACK_WEEKLY_SCHOLARS;
+  var __gotyping_weekly_leaderboards: Record<string, LeaderboardScholar[]> | undefined;
 }
 
 function getCohortWeek(): string {
   return globalThis.__gotyping_cohort_week || "Tuần 41 / 2026";
 }
 
+function getEffectiveLeaderboard(week?: string): LeaderboardScholar[] {
+  const targetWeek = week || getCohortWeek();
+  if (globalThis.__gotyping_weekly_leaderboards && globalThis.__gotyping_weekly_leaderboards[targetWeek]) {
+    return globalThis.__gotyping_weekly_leaderboards[targetWeek];
+  }
+  if (!globalThis.__gotyping_admin_leaderboard || globalThis.__gotyping_admin_leaderboard.length === 0) {
+    globalThis.__gotyping_admin_leaderboard = JSON.parse(JSON.stringify(FALLBACK_WEEKLY_SCHOLARS));
+  }
+  return globalThis.__gotyping_admin_leaderboard || FALLBACK_WEEKLY_SCHOLARS;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const roleCookie = req.cookies.get("gotyping_role")?.value;
     const isGuest = !roleCookie;
+    const { searchParams } = new URL(req.url);
+    const requestedWeek = searchParams.get("week") || getCohortWeek();
 
     const supabase = createAdminClient();
 
@@ -214,7 +221,10 @@ export async function GET(req: NextRequest) {
 
     let leaderboard: LeaderboardScholar[] = [];
 
-    if (!error && dbRows && dbRows.length > 0) {
+    // If super admin has customized the leaderboard in-memory, prefer instant admin override
+    if (globalThis.__gotyping_admin_leaderboard || globalThis.__gotyping_weekly_leaderboards) {
+      leaderboard = getEffectiveLeaderboard(requestedWeek);
+    } else if (!error && dbRows && dbRows.length > 0) {
       leaderboard = dbRows.map((row, idx) => ({
         rank: idx + 1,
         id: row.user_id,
@@ -238,13 +248,14 @@ export async function GET(req: NextRequest) {
       }));
     } else {
       // Use unified academic fallback / admin synchronized dataset
-      leaderboard = getEffectiveLeaderboard();
+      leaderboard = getEffectiveLeaderboard(requestedWeek);
     }
 
     return NextResponse.json(
       {
         success: true,
-        cohort_week: getCohortWeek(),
+        cohort_week: requestedWeek,
+        active_system_week: getCohortWeek(),
         reset_day: "Chủ Nhật (23:59 GMT+7)",
         is_guest: isGuest,
         leaderboard,

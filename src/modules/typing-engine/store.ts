@@ -43,7 +43,7 @@ const initialMetrics: TypingSessionMetrics = {
   elapsedSeconds: 0,
   rawWpm: 0,
   netWpm: 0,
-  accuracy: 100,
+  accuracy: 0,
   consistency: 100,
   totalKeystrokes: 0,
   correctKeystrokes: 0,
